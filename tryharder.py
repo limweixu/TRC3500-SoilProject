@@ -207,3 +207,133 @@ print(f"Intercept: {intercept:.4f}")
 print(f"R-squared: {r_squared:.4f}")
 print(f"Slope Confidence Interval (90%): ±{margin_of_error:.6f}")
 print(f"Slope Variation: {(margin_of_error/slope)*100:.2f}%")
+
+
+# Define dry and wet ADC values
+ADC_dry = 4024
+ADC_wet = 111
+
+# Function to calculate moisture percentage using linear interpolation
+def calculate_moisture_percentage(adc_value, adc_dry=ADC_dry, adc_wet=ADC_wet):
+    """
+    Calculate moisture percentage using linear interpolation
+    
+    Parameters:
+    adc_value (float): Current ADC reading
+    adc_dry (float): ADC value for dry soil
+    adc_wet (float): ADC value for wet soil
+    
+    Returns:
+    float: Moisture percentage (0-100%)
+    """
+    moisture_percentage = ((adc_value - adc_dry) / (adc_wet - adc_dry)) * 100
+    return max(0, min(100, moisture_percentage))  # Clamp between 0 and 100
+
+plt.figure(figsize=(20, 6))
+
+# Function to create enhanced subplot with regression details
+def create_enhanced_moisture_subplot(subplot_pos, volumes, moisture_percentages, title):
+    plt.subplot(1, 3, subplot_pos)
+    
+    # Convert to numpy arrays
+    X = volumes.values
+    y = np.array(moisture_percentages)
+    
+    # Scatter plot
+    plt.scatter(X, y, color='blue', label='Original Data Points')
+    
+    # Fit linear regression model
+    model = LinearRegression()
+    model.fit(X.reshape(-1, 1), y)
+    
+    # Calculate predicted values
+    y_pred = model.predict(X.reshape(-1, 1))
+    
+    # Main regression line
+    plt.plot(X, y_pred, color='red', label='Linear Regression')
+    
+    # Calculate vertical offsets (±10% of the mean value)
+    mean_value = np.mean(y_pred)
+    vertical_offset = mean_value * 0.1
+    
+    # Plot offset lines
+    plt.plot(X, y_pred + vertical_offset, 
+             color='green', linestyle='--', label='+10% Vertical Offset')
+    plt.plot(X, y_pred - vertical_offset, 
+             color='green', linestyle='--', label='-10% Vertical Offset')
+    
+    # Calculate regression metrics
+    r_squared = model.score(X.reshape(-1, 1), y)
+    slope = model.coef_[0]
+    intercept = model.intercept_
+    
+    # Confidence interval calculation
+    def calculate_slope_confidence_interval(X, y, confidence=0.90):
+        n = len(X)
+        y_pred = model.predict(X.reshape(-1, 1))
+        residuals = y - y_pred
+        std_error_estimate = np.sqrt(np.sum(residuals**2) / (n - 2))
+        xx_sum = np.sum((X - np.mean(X))**2)
+        std_error_slope = std_error_estimate / np.sqrt(xx_sum)
+        t_value = stats.t.ppf((1 + confidence) / 2, df=n - 2)
+        return t_value * std_error_slope
+    
+    # Calculate margin of error
+    margin_of_error = calculate_slope_confidence_interval(X, y)
+    
+    # Formatting regression equation and details
+    equation = f'Y = {slope:.4f} * X + {intercept:.4f}'
+    confidence_text = f'R-squared: {r_squared:.4f}\n'
+    confidence_text += f'Slope Confidence Interval (90%): ±{margin_of_error:.6f}\n'
+    confidence_text += f'Slope Variation: {(margin_of_error/slope)*100:.2f}%\n'
+    
+    plt.xlabel('Volume (ml)')
+    plt.ylabel('Moisture (%)')
+    plt.title(title)    
+    plt.ylim(0, 100)
+    plt.grid(True)
+    plt.legend()
+    
+    # Add text box with regression details
+    plt.text(0.05, 0.95, equation + '\n' + confidence_text, 
+             transform=plt.gca().transAxes, fontsize=10, 
+             verticalalignment='top', 
+             bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
+
+# Create three subplots with different moisture percentage calculations
+create_enhanced_moisture_subplot(
+    1, 
+    volumes, 
+    [adc_to_moisture(adc) for adc in adc_values], 
+    'Moisture Percentage vs Volume\n(ADC-based Conversion)'
+)
+
+create_enhanced_moisture_subplot(
+    2, 
+    volumes, 
+    [volume_to_moisture(vol) for vol in volumes], 
+    'Moisture Percentage vs Volume\n(Using Volume)'
+)
+
+create_enhanced_moisture_subplot(
+    3, 
+    volumes, 
+    [calculate_moisture_percentage(adc) for adc in adc_values], 
+    'Moisture Percentage vs Volume\n(Linear Interpolation)'
+)
+
+plt.tight_layout()
+plt.show()
+
+# # Optional: Print out some comparison data
+# print("\nMoisture Percentage Comparison:")
+# print("Volume | ADC-based | Volume-based | Linear Interpolation")
+# print("-" * 60)
+# for vol, adc, adc_moist, vol_moist, interp_moist in zip(
+#     volumes, 
+#     adc_values, 
+#     [adc_to_moisture(adc) for adc in adc_values],
+#     [volume_to_moisture(vol) for vol in volumes],
+#     moisture_percentages_interpolation
+# ):
+#     print(f"{vol:6.2f} | {adc_moist:9.2f} | {vol_moist:11.2f} | {interp_moist:19.2f}")
