@@ -337,3 +337,4 @@ plt.show()
 #     moisture_percentages_interpolation
 # ):
 #     print(f"{vol:6.2f} | {adc_moist:9.2f} | {vol_moist:11.2f} | {interp_moist:19.2f}")
+
